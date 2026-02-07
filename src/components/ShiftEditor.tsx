@@ -19,10 +19,13 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
     const handleDownloadIcs = async () => {
         if (!selectedEmployee) return;
 
-        // Filter for valid shifts (ignoring holidays for now, or maybe make them all-day events later)
-        // Currently targeting only "Shift" type which has start/end times
+        // Filter for valid shifts (including Shift, Holiday, etc.)
         const employeeShifts = data.shifts.filter(s =>
-            s.employeeName === selectedEmployee && s.type === "Shift" && s.startTime && s.endTime
+            s.employeeName === selectedEmployee &&
+            (
+                (s.type === "Shift" && s.startTime && s.endTime) ||
+                (s.type.includes("公") || s.type.includes("休") || s.type.includes("有"))
+            )
         );
 
         if (employeeShifts.length === 0) {
@@ -32,28 +35,45 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
         const events: ics.EventAttributes[] = employeeShifts.map(shift => {
             const [year, month, day] = shift.date.split("-").map(Number);
-            const [startH, startM] = shift.startTime.split(":").map(Number);
-            const [endH, endM] = shift.endTime.split(":").map(Number);
 
-            // Handle overnight shifts (e.g. 22:00 to 05:00)
-            // If end hour is significantly smaller than start hour, assume next day.
-            let endYear = year;
-            let endMonth = month;
-            let endDay = day;
+            // Case 1: Regular Shift
+            if (shift.type === "Shift" && shift.startTime && shift.endTime) {
+                const [startH, startM] = shift.startTime.split(":").map(Number);
+                const [endH, endM] = shift.endTime.split(":").map(Number);
 
-            if (endH < startH) {
-                const d = new Date(year, month - 1, day);
-                d.setDate(d.getDate() + 1); // Add 1 day
-                endYear = d.getFullYear();
-                endMonth = d.getMonth() + 1;
-                endDay = d.getDate();
+                // Handle overnight shifts
+                let endYear = year;
+                let endMonth = month;
+                let endDay = day;
+
+                if (endH < startH) {
+                    const d = new Date(year, month - 1, day);
+                    d.setDate(d.getDate() + 1);
+                    endYear = d.getFullYear();
+                    endMonth = d.getMonth() + 1;
+                    endDay = d.getDate();
+                }
+
+                return {
+                    title: '在宅',
+                    start: [year, month, day, startH, startM],
+                    end: [endYear, endMonth, endDay, endH, endM],
+                    description: `Shift: ${shift.startTime} - ${shift.endTime}`,
+                    calName: 'Shift Schedule',
+                    productId: 'ShiftCalendarConverter'
+                };
             }
 
+            // Case 2: Holiday / Paid Leave
+            let title = "公休";
+            if (shift.type.includes("有")) title = "有給";
+            if (shift.type.includes("休") && !shift.type.includes("公")) title = "休み";
+
             return {
-                title: 'Shift Work',
-                start: [year, month, day, startH, startM],
-                end: [endYear, endMonth, endDay, endH, endM],
-                description: `Shift: ${shift.startTime} - ${shift.endTime}`,
+                title: title,
+                start: [year, month, day],
+                end: [year, month, day + 1],
+                description: `Type: ${shift.type}`,
                 calName: 'Shift Schedule',
                 productId: 'ShiftCalendarConverter'
             };
