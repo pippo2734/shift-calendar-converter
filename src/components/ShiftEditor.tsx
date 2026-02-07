@@ -26,7 +26,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
         if (!selectedEmployee) return;
 
         const employeeShifts = data.shifts.filter(s =>
-            s.employeeName === selectedEmployee && 
+            s.employeeName === selectedEmployee &&
             (
                 (s.type === "Shift" && s.startTime && s.endTime) ||
                 (s.type.includes("公") || s.type.includes("休") || s.type.includes("有") || s.type.includes("希"))
@@ -39,31 +39,31 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
         }
 
         const headers = [
-            "created", "creator", "modified", "modifier", "child_modified", "title", "label", "color", 
-            "is_all_day", "timezone", "dtstart", "dtend", "successor", "attendee", "facility", 
-            "facility_approval", "web_meeting_external_service", "web_meeting_url", "no_notify", 
-            "organizer", "organizer_belonging_groups", "body", "body_format", "holiday", "substitute", 
-            "location", "address", "icons", "attachment", "addressUser", "banner", "scope", 
-            "public_to_secretary", "additional_public", "is_confidential", "allow_attendee_edit", 
-            "view_presence_on_news", "default_presence", "create_as_secretary", "delegate_allowed", 
-            "send_mail", "alarm_time", "mail_type", "intent_from", "first_day_of_week", "recurrence", 
-            "recurrent_type", "recurrent_interval", "month_of_year", "recurrent_subtype", "days_of_week", 
-            "day_of_month", "week_of_month", "day_of_week", "irregular_dates", "recurrent_start", 
-            "limit_type", "limit_count", "limit_date", "recurrent_except_rule", "recurrent_except_target", 
-            "reserve1", "reserve2", "reserve3", "reserve4", "reserve5", "reserve6", "reserve7", 
-            "reserve8", "reserve9", "reserve10", "exceptional_list", "attendee_delegate", "is_tentative", 
-            "id", "container", "parent", "thread_id", "description", "type", "format", "issued", 
+            "created", "creator", "modified", "modifier", "child_modified", "title", "label", "color",
+            "is_all_day", "timezone", "dtstart", "dtend", "successor", "attendee", "facility",
+            "facility_approval", "web_meeting_external_service", "web_meeting_url", "no_notify",
+            "organizer", "organizer_belonging_groups", "body", "body_format", "holiday", "substitute",
+            "location", "address", "icons", "attachment", "addressUser", "banner", "scope",
+            "public_to_secretary", "additional_public", "is_confidential", "allow_attendee_edit",
+            "view_presence_on_news", "default_presence", "create_as_secretary", "delegate_allowed",
+            "send_mail", "alarm_time", "mail_type", "intent_from", "first_day_of_week", "recurrence",
+            "recurrent_type", "recurrent_interval", "month_of_year", "recurrent_subtype", "days_of_week",
+            "day_of_month", "week_of_month", "day_of_week", "irregular_dates", "recurrent_start",
+            "limit_type", "limit_count", "limit_date", "recurrent_except_rule", "recurrent_except_target",
+            "reserve1", "reserve2", "reserve3", "reserve4", "reserve5", "reserve6", "reserve7",
+            "reserve8", "reserve9", "reserve10", "exceptional_list", "attendee_delegate", "is_tentative",
+            "id", "container", "parent", "thread_id", "description", "type", "format", "issued",
             "available", "sort_order"
         ];
 
-        const userId = "U:CJK:20665"; 
+        const userId = "U:CJK:20665";
 
         const rows = employeeShifts.map(shift => {
             const isShift = shift.type === "Shift";
             const isAllDay = !isShift;
-            
+
             let title = "在宅";
-            let isBanner = "0"; 
+            let isBanner = "0";
 
             if (!isShift) {
                 // Holiday -> Schedule (0)
@@ -78,7 +78,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
             let startStr = "";
             let endStr = "";
-            
+
             if (isAllDay) {
                 startStr = formatCsvDate(shift.date);
                 const [y, m, d] = shift.date.split("-").map(Number);
@@ -89,20 +89,20 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                 const nd = String(nextDay.getDate()).padStart(2, '0');
                 endStr = `dt${ny}-${nm}-${nd} 00:00:00`;
             } else {
-                 startStr = formatCsvDate(shift.date, shift.startTime);
-                 const [y, m, d] = shift.date.split("-").map(Number);
-                 const [sh, sm] = shift.startTime!.split(":").map(Number);
-                 const [eh, em] = shift.endTime!.split(":").map(Number);
-                 
-                 let endY = y, endM = m, endD = d;
-                 if (eh < sh) {
-                     const next = new Date(y, m - 1, d);
-                     next.setDate(next.getDate() + 1);
-                     endY = next.getFullYear();
-                     endM = next.getMonth() + 1;
-                     endD = next.getDate();
-                 }
-                 endStr = `dt${endY}-${String(endM).padStart(2, '0')}-${String(endD).padStart(2, '0')} ${shift.endTime}:00`;
+                startStr = formatCsvDate(shift.date, shift.startTime);
+                const [y, m, d] = shift.date.split("-").map(Number);
+                const [sh, sm] = shift.startTime!.split(":").map(Number);
+                const [eh, em] = shift.endTime!.split(":").map(Number);
+
+                let endY = y, endM = m, endD = d;
+                if (eh < sh) {
+                    const next = new Date(y, m - 1, d);
+                    next.setDate(next.getDate() + 1);
+                    endY = next.getFullYear();
+                    endM = next.getMonth() + 1;
+                    endD = next.getDate();
+                }
+                endStr = `dt${endY}-${String(endM).padStart(2, '0')}-${String(endD).padStart(2, '0')} ${shift.endTime}:00`;
             }
 
             const map: Record<string, string> = {
@@ -114,7 +114,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                 "dtstart": startStr,
                 "dtend": endStr,
                 "body_format": "text/plain",
-                "banner": isBanner, 
+                "banner": isBanner,
                 "scope": "public",
                 "public_to_secretary": "1",
                 "send_mail": "0",
@@ -230,45 +230,47 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                 <div>
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                         <CalendarIcon className="text-cyan-400" />
-                        {data.month} Shift Schedule
+                        {data.month} シフト表
                     </h2>
-                    <p className="text-slate-400">Select your name to export your calendar.</p>
+                    <p className="text-slate-400">名前を選択してカレンダーを出力してください。</p>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                     <button
                         onClick={onReset}
                         className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
                     >
-                        Upload New File
+                        ファイルを再アップロード
                     </button>
-                    
+
                     {/* CSV Export */}
                     <button
-                         disabled={!selectedEmployee}
-                         onClick={handleDownloadCsv}
-                         className={clsx(
-                             "flex items-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all shadow-lg text-sm",
-                             selectedEmployee
-                                 ? "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20"
-                                 : "bg-slate-800 text-slate-600 cursor-not-allowed"
-                         )}
+                        disabled={!selectedEmployee}
+                        onClick={handleDownloadCsv}
+                        className={clsx(
+                            "flex items-center gap-2 px-4 py-3 rounded-xl font-bold transition-all shadow-lg text-sm",
+                            selectedEmployee
+                                ? "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20"
+                                : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                        )}
                     >
                         <Download className="w-4 h-4" />
-                        Export CSV
+                        CSV出力 (会社用)
                     </button>
+
+                    {/* ICS Export */}
                     <button
                         disabled={!selectedEmployee}
                         onClick={handleDownloadIcs}
                         className={clsx(
-                            "flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all shadow-lg",
+                            "flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg",
                             selectedEmployee
                                 ? "bg-gradient-to-r from-cyan-500 to-blue-600 hover:shadow-cyan-500/25 text-white"
                                 : "bg-slate-700 text-slate-500 cursor-not-allowed"
                         )}
                     >
                         <Download className="w-5 h-5" />
-                        Export to Calendar
+                        カレンダー登録 (ICS)
                     </button>
                 </div>
             </div>
@@ -279,7 +281,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="bg-slate-800/50 text-slate-300">
                             <tr>
-                                <th className="p-4 sticky left-0 bg-slate-900 border-b border-slate-700 z-10">Employee Name</th>
+                                <th className="p-4 sticky left-0 bg-slate-900 border-b border-slate-700 z-10">氏名</th>
                                 {Array.from({ length: daysInMonth }).map((_, i) => (
                                     <th key={i} className="p-4 min-w-[80px] text-center border-b border-slate-700 border-l border-slate-700/50">
                                         {i + 1}
@@ -291,7 +293,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                             {data.employees.length === 0 ? (
                                 <tr>
                                     <td colSpan={daysInMonth + 1} className="p-8 text-center text-slate-400">
-                                        <div className="mb-4">No employees detected. Attempting to debug...</div>
+                                        <div className="mb-4">データが見つかりませんでした。詳細情報を確認してください。</div>
                                         {data.debugInfo && (
                                             <div className="text-left bg-slate-900 p-4 rounded-lg overflow-auto max-h-64 text-xs font-mono">
                                                 <p>Total Items: {data.debugInfo.totalItems}</p>
