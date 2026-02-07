@@ -34,7 +34,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
         );
 
         if (employeeShifts.length === 0) {
-            alert("No shift data found to export.");
+            alert("エクスポートするデータが見つかりませんでした。");
             return;
         }
 
@@ -149,7 +149,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
         );
 
         if (employeeShifts.length === 0) {
-            alert("No shift data found for this employee.");
+            alert("この従業員のシフトデータが見つかりませんでした。");
             return;
         }
 
@@ -206,7 +206,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
         if (error) {
             console.error(error);
-            alert("Failed to generate calendar file");
+            alert("カレンダーファイルの生成に失敗しました");
             return;
         }
 
@@ -300,7 +300,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                                                 <p>Rows Detected: {data.debugInfo.rowsDetected}</p>
                                                 <p>Year/Month: {data.debugInfo.yearMonthFound}</p>
                                                 <p>Date Row Index: {data.debugInfo.dateRowIndex}</p>
-                                                <p className="mt-2 text-slate-300 font-bold">First 10 Rows:</p>
+                                                <p className="mt-2 text-slate-300 font-bold">最初の10行:</p>
                                                 {data.debugInfo.sampleRows.map((row, i) => (
                                                     <div key={i} className="whitespace-pre border-b border-slate-800 py-1">{i}: {row}</div>
                                                 ))}
