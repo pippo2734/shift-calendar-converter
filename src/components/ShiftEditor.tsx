@@ -16,6 +16,126 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
     const [selectedEmployee, setSelectedEmployee] = useState<string>("");
     const daysInMonth = 31; // Simplification, should be calculated from data.month
 
+    // Helper to format date for CSV: dtYYYY-MM-DD HH:MM:SS
+    const formatCsvDate = (dateStr: string, timeStr?: string) => {
+        if (!timeStr) return `dt${dateStr} 00:00:00`;
+        return `dt${dateStr} ${timeStr}:00`;
+    };
+
+    const handleDownloadCsv = () => {
+        if (!selectedEmployee) return;
+
+        const employeeShifts = data.shifts.filter(s =>
+            s.employeeName === selectedEmployee && 
+            (
+                (s.type === "Shift" && s.startTime && s.endTime) ||
+                (s.type.includes("公") || s.type.includes("休") || s.type.includes("有") || s.type.includes("希"))
+            )
+        );
+
+        if (employeeShifts.length === 0) {
+            alert("No shift data found to export.");
+            return;
+        }
+
+        const headers = [
+            "created", "creator", "modified", "modifier", "child_modified", "title", "label", "color", 
+            "is_all_day", "timezone", "dtstart", "dtend", "successor", "attendee", "facility", 
+            "facility_approval", "web_meeting_external_service", "web_meeting_url", "no_notify", 
+            "organizer", "organizer_belonging_groups", "body", "body_format", "holiday", "substitute", 
+            "location", "address", "icons", "attachment", "addressUser", "banner", "scope", 
+            "public_to_secretary", "additional_public", "is_confidential", "allow_attendee_edit", 
+            "view_presence_on_news", "default_presence", "create_as_secretary", "delegate_allowed", 
+            "send_mail", "alarm_time", "mail_type", "intent_from", "first_day_of_week", "recurrence", 
+            "recurrent_type", "recurrent_interval", "month_of_year", "recurrent_subtype", "days_of_week", 
+            "day_of_month", "week_of_month", "day_of_week", "irregular_dates", "recurrent_start", 
+            "limit_type", "limit_count", "limit_date", "recurrent_except_rule", "recurrent_except_target", 
+            "reserve1", "reserve2", "reserve3", "reserve4", "reserve5", "reserve6", "reserve7", 
+            "reserve8", "reserve9", "reserve10", "exceptional_list", "attendee_delegate", "is_tentative", 
+            "id", "container", "parent", "thread_id", "description", "type", "format", "issued", 
+            "available", "sort_order"
+        ];
+
+        const userId = "U:CJK:20665"; 
+
+        const rows = employeeShifts.map(shift => {
+            const isShift = shift.type === "Shift";
+            const isAllDay = !isShift;
+            
+            let title = "在宅";
+            let isBanner = "0"; 
+
+            if (!isShift) {
+                // Holiday -> Schedule (0)
+                isBanner = "0";
+                if (shift.type.includes("有")) title = "有給";
+                else if (shift.type.includes("公") || shift.type.includes("休") || shift.type.includes("希")) title = "公休";
+                else title = shift.type;
+            } else {
+                // Shift -> Banner (1)
+                isBanner = "1";
+            }
+
+            let startStr = "";
+            let endStr = "";
+            
+            if (isAllDay) {
+                startStr = formatCsvDate(shift.date);
+                const [y, m, d] = shift.date.split("-").map(Number);
+                const nextDay = new Date(y, m - 1, d);
+                nextDay.setDate(nextDay.getDate() + 1);
+                const ny = nextDay.getFullYear();
+                const nm = String(nextDay.getMonth() + 1).padStart(2, '0');
+                const nd = String(nextDay.getDate()).padStart(2, '0');
+                endStr = `dt${ny}-${nm}-${nd} 00:00:00`;
+            } else {
+                 startStr = formatCsvDate(shift.date, shift.startTime);
+                 const [y, m, d] = shift.date.split("-").map(Number);
+                 const [sh, sm] = shift.startTime!.split(":").map(Number);
+                 const [eh, em] = shift.endTime!.split(":").map(Number);
+                 
+                 let endY = y, endM = m, endD = d;
+                 if (eh < sh) {
+                     const next = new Date(y, m - 1, d);
+                     next.setDate(next.getDate() + 1);
+                     endY = next.getFullYear();
+                     endM = next.getMonth() + 1;
+                     endD = next.getDate();
+                 }
+                 endStr = `dt${endY}-${String(endM).padStart(2, '0')}-${String(endD).padStart(2, '0')} ${shift.endTime}:00`;
+            }
+
+            const map: Record<string, string> = {
+                "created": userId,
+                "modifier": userId,
+                "title": title,
+                "is_all_day": isAllDay ? "1" : "0",
+                "timezone": "Asia/Tokyo",
+                "dtstart": startStr,
+                "dtend": endStr,
+                "body_format": "text/plain",
+                "banner": isBanner, 
+                "scope": "public",
+                "public_to_secretary": "1",
+                "send_mail": "0",
+                "mail_type": "none",
+                "is_tentative": "0"
+            };
+
+            return headers.map(h => map[h] || "").join("\t");
+        });
+
+        const csvContent = [headers.join("\t"), ...rows].join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `company_import_${selectedEmployee}_${data.month}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleDownloadIcs = async () => {
         if (!selectedEmployee) return;
 
@@ -121,6 +241,21 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                         className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
                     >
                         Upload New File
+                    </button>
+                    
+                    {/* CSV Export */}
+                    <button
+                         disabled={!selectedEmployee}
+                         onClick={handleDownloadCsv}
+                         className={clsx(
+                             "flex items-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all shadow-lg text-sm",
+                             selectedEmployee
+                                 ? "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20"
+                                 : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                         )}
+                    >
+                        <Download className="w-4 h-4" />
+                        Export CSV
                     </button>
                     <button
                         disabled={!selectedEmployee}
