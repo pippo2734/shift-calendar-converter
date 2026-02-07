@@ -26,7 +26,7 @@ export default function DropZone({ onFileSelect, isProcessing }: DropZoneProps) 
 
     const validateAndSelectFile = (file: File) => {
         if (file.type !== "application/pdf") {
-            setError("Please upload a PDF file.");
+            setError("PDFファイルをアップロードしてください。");
             return;
         }
         setError(null);
@@ -94,11 +94,11 @@ export default function DropZone({ onFileSelect, isProcessing }: DropZoneProps) 
                     </div>
 
                     <div>
-                        <h3 className="text-xl font-semibold text-slate-200">
-                            {isProcessing ? "Processing..." : "Select Shift PDF"}
+                        <h3 className="text-xl font-bold text-slate-200">
+                            {isProcessing ? "処理中..." : "シフト表(PDF)を選択"}
                         </h3>
                         <p className="text-sm text-slate-400 mt-2">
-                            Drag & drop or click to upload
+                            ドラッグ＆ドロップ または クリックしてアップロード
                         </p>
                     </div>
                 </div>

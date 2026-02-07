@@ -22,7 +22,7 @@ export default function Home() {
       setParseResult(result);
     } catch (error: any) {
       console.error("Parsing failed", error);
-      alert(`Failed to parse PDF: ${error.message}`);
+      alert(`PDFの解析に失敗しました: ${error.message}`);
       setFile(null);
     } finally {
       setIsProcessing(false);
@@ -58,16 +58,16 @@ export default function Home() {
               <div className="space-y-4">
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm font-medium text-cyan-200 mb-4">
                   <Calendar className="w-4 h-4" />
-                  <span>Shift Schedule Converter</span>
+                  <span>シフトカレンダー変換ツール</span>
                 </div>
 
-                <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white mb-2">
-                  Transform Your <br />
-                  <span className="text-gradient">Shift PDF</span> to Calendar
+                <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white mb-2 leading-tight">
+                  <span className="text-gradient">シフト表(PDF)</span> を<br />
+                  カレンダーに一括登録
                 </h1>
 
                 <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-                  Upload your shift schedule PDF and instantly get a calendar file compatible with Google Calendar, Apple Calendar, and Outlook.
+                  シフト表のPDFをアップロードするだけで、GoogleカレンダーやOutlookなどで使える形式に変換します。会社用CSVの出力にも対応。
                 </p>
               </div>
 
@@ -79,8 +79,8 @@ export default function Home() {
                   onClick={() => handleFileSelect(new File([""], "demo.pdf", { type: "application/pdf" }))}
                   className="text-slate-500 hover:text-cyan-400 text-sm transition-colors flex items-center gap-1"
                 >
-                  <span>Don't have a file?</span>
-                  <span className="underline decoration-dashed decoration-1 underline-offset-4">Try with demo data</span>
+                  <span>ファイルがないですか？</span>
+                  <span className="underline decoration-dashed decoration-1 underline-offset-4">デモデータで試す</span>
                 </button>
               </div>
             </motion.div>
