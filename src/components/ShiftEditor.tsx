@@ -68,9 +68,8 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             if (!isShift) {
                 // Holiday -> Schedule (0)
                 isBanner = "0";
-                if (shift.type.includes("有")) title = "有給";
-                else if (shift.type.includes("公") || shift.type.includes("休") || shift.type.includes("希")) title = "公休";
-                else title = shift.type;
+                // User requested everything (including Paid Leave "有給") to be "公休"
+                title = "公休";
             } else {
                 // Shift -> Banner (1)
                 isBanner = "1";
@@ -185,9 +184,8 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             }
 
             // Case 2: Holiday / Paid Leave
+            // User requested everything to be "公休"
             let title = "公休";
-            if (shift.type.includes("有")) title = "有給";
-            // "休" or other types also become "公休" by default above
 
             return {
                 title: title,
