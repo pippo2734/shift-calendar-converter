@@ -187,7 +187,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             // Case 2: Holiday / Paid Leave
             let title = "公休";
             if (shift.type.includes("有")) title = "有給";
-            if (shift.type.includes("休") && !shift.type.includes("公")) title = "休み";
+            // "休" or other types also become "公休" by default above
 
             return {
                 title: title,
@@ -352,11 +352,10 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                                                         ) : (
                                                             <div className={clsx(
                                                                 "inline-block px-2 py-1 rounded-full text-[10px] font-bold",
-                                                                shift.type.includes("公") ? "bg-red-500/20 text-red-300" :
-                                                                    shift.type.includes("希") ? "bg-yellow-500/20 text-yellow-300" :
-                                                                        "bg-blue-500/20 text-blue-300"
+                                                                shift.type.includes("有") ? "bg-blue-500/20 text-blue-300" :
+                                                                    "bg-red-500/20 text-red-300"
                                                             )}>
-                                                                {shift.type}
+                                                                {shift.type.includes("有") ? "有給" : "公休"}
                                                             </div>
                                                         )
                                                     ) : (
