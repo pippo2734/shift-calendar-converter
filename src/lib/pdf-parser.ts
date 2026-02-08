@@ -220,62 +220,72 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
             const startRow = rows[rowIdx];
             const endRow = (rowIdx + 1 < rows.length) ? rows[rowIdx + 1] : [];
 
-            // Process Start Times / Statuses in First Row
-            // Filter out the Name item itself
-            const potentialItems = startRow.filter(it => it.x > 100);
+            // COLUMN-CENTRIC APPROACH
+            // Iterate through each estimated column to find items in both rows
+            columnsX.forEach((colX, colIdx) => {
+                const day = colIdx + 1;
 
-            potentialItems.forEach(item => {
-                const cx = item.x + item.w / 2;
-                // Find closest column
-                let closestColIdx = -1;
-                let minDist = Infinity;
+                // Helper to find item in a row near colX
+                const findItemInRow = (r: ParsedItem[]) => {
+                    return r.find(it => Math.abs((it.x + it.w / 2) - colX) < 15);
+                };
 
-                columnsX.forEach((colX, idx) => {
-                    const dist = Math.abs(colX - cx);
-                    if (dist < minDist) {
-                        minDist = dist;
-                        closestColIdx = idx;
-                    }
-                });
+                const item1 = findItemInRow(startRow);
+                const item2 = findItemInRow(endRow);
 
-                if (minDist < 20 && closestColIdx !== -1) {
-                    const day = closestColIdx + 1; // 1-based day
-                    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const val = clean(item.str);
+                if (!item1 && !item2) return;
 
-                    let type = "";
-                    let start = "";
-                    let end = "";
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-                    if (["公", "休", "有", "希"].some(s => val.includes(s))) {
-                        type = val; // "Holiday", etc.
-                    } else if (isTime(val)) {
+                let type = "";
+                let start = "";
+                let end = "";
+
+                // Analyze content of both items
+                const texts = [item1?.str, item2?.str].filter(Boolean).map(s => clean(s!));
+
+                // 1. Check for Holiday/Special Types in EITHER row
+                // Added more keywords: 欠 (Absence), 半 (Half), 遅 (Late), 早 (Early)
+                const typeKeywords = ["公", "休", "有", "希", "欠", "半", "遅", "早"];
+                const foundType = texts.find(t => typeKeywords.some(k => t.includes(k)));
+
+                if (foundType) {
+                    type = foundType;
+                }
+                // 2. Check for Time Pattern (Start/End)
+                else {
+                    const times = texts.filter(t => isTime(t));
+                    if (times.length > 0) {
                         type = "Shift";
-                        start = val;
-
-                        // Look for matching End Time in next row at similar X
-                        const mate = endRow.find(it => Math.abs((it.x + it.w / 2) - cx) < 15);
-                        if (mate && isTime(clean(mate.str))) {
-                            end = clean(mate.str);
+                        // Usually first is start, second is end
+                        // But we should trust the row position if possible
+                        if (item1 && isTime(clean(item1.str))) {
+                            start = clean(item1.str);
+                            if (item2 && isTime(clean(item2.str))) {
+                                end = clean(item2.str);
+                            }
+                        } else if (item2 && isTime(clean(item2.str))) {
+                            // Only found time in second row? Maybe just start time or just end time?
+                            // Assume it's start time if only one exists, or fallback
+                            start = clean(item2.str);
                         }
                     }
+                }
 
-                    if (type) {
-                        shifts.push({
-                            date: dateStr,
-                            startTime: start,
-                            endTime: end,
-                            type,
-                            employeeName: name
-                        });
-                    }
+                if (type) {
+                    shifts.push({
+                        date: dateStr,
+                        startTime: start,
+                        endTime: end,
+                        type,
+                        employeeName: name
+                    });
                 }
             });
         }
     } else {
         log("No shift rows found via heuristic.");
     }
-
 
     return {
         month: `${year}-${String(month).padStart(2, '0')}`,
