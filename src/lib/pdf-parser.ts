@@ -220,24 +220,37 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
             log(`Dynamic Search Radius: ${searchRadius.toFixed(2)}`);
 
             // Now iterate shift rows and map items to columns
-            for (const { rowIdx, name } of shiftRows) {
+            for (let i = 0; i < shiftRows.length; i++) {
+                const { rowIdx, name } = shiftRows[i];
                 employees.push(name);
 
-                // Look at this row (Start Times) and next row (End Times)
-                const startRow = rows[rowIdx];
-                const endRow = (rowIdx + 1 < rows.length) ? rows[rowIdx + 1] : [];
+                // Determine likely rows belonging to this employee
+                // We'll look at the current row and subsequent rows until the next employee's row
+                const nextRowLimit = (i + 1 < shiftRows.length) ? shiftRows[i + 1].rowIdx : rows.length;
+
+                // Allow capturing up to 3 rows per employee (Name/Start/End often span 2-3 visual rows)
+                // But do not cross into the next employee's territory
+                const rowsToAnalyze: ParsedItem[][] = [];
+                const maxRows = 3;
+
+                for (let r = 0; r < maxRows; r++) {
+                    const targetIdx = rowIdx + r;
+                    if (targetIdx < nextRowLimit && targetIdx < rows.length) {
+                        rowsToAnalyze.push(rows[targetIdx]);
+                    }
+                }
 
                 // COLUMN-CENTRIC APPROACH
                 columnsX.forEach((colX, colIdx) => {
                     const day = colIdx + 1;
 
-                    // Find ALL items in this column's vertical strip (covering startRow and endRow)
+                    // Find ALL items in this column's vertical strip across ALL analyzed rows
                     const inRange = (it: ParsedItem) => Math.abs((it.x + it.w / 2) - colX) < searchRadius;
 
-                    const itemsInCell = [
-                        ...startRow.filter(inRange),
-                        ...endRow.filter(inRange)
-                    ];
+                    const itemsInCell: ParsedItem[] = [];
+                    rowsToAnalyze.forEach(r => {
+                        itemsInCell.push(...r.filter(inRange));
+                    });
 
                     if (itemsInCell.length === 0) return;
 
@@ -251,9 +264,6 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
                     let end = "";
 
                     // Analyze content of ALL items in this cell
-                    // We join them to catch split text or analyze individually
-                    // But keeping them separate is safer for now to distinguish Top/Bottom
-
                     const allTexts = itemsInCell.map(it => clean(it.str));
 
                     // 1. Check for Holiday/Special Types
@@ -264,7 +274,6 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
                         type = foundType;
                     } else {
                         // 2. Extract Times
-                        // We look for time patterns "H:MM" or "HH:MM"
                         const timeRegex = /\d{1,2}:\d{2}/g;
                         const foundTimes: string[] = [];
 
@@ -279,11 +288,15 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
                         // If we found times, assume:
                         // 1st time = Start
                         // 2nd time = End
+                        // If 3+ times found (rare), take first and last? Or first and second.
+                        // Usually top-most is start, bottom-most is end.
                         if (foundTimes.length > 0) {
                             type = "Shift";
                             start = foundTimes[0];
                             if (foundTimes.length > 1) {
-                                end = foundTimes[1];
+                                // If more than 2, maybe take the last one as end?
+                                // Usually just 2.
+                                end = foundTimes[foundTimes.length - 1];
                             }
                         }
                     }
