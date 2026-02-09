@@ -235,7 +235,8 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
 
                 for (let r = 0; r < maxRows; r++) {
                     const targetIdx = rowIdx + r;
-                    if (targetIdx < nextRowLimit && targetIdx < rows.length) {
+                    // Ensure we don't go past the document end AND don't invade next employee's row
+                    if (targetIdx < rows.length && targetIdx < nextRowLimit) {
                         rowsToAnalyze.push(rows[targetIdx]);
                     }
                 }
