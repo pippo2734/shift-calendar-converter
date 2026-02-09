@@ -207,97 +207,112 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
                 }
                 lastX = timeXCoords[k];
             }
-            columnsX.push(clusterSum / clusterCount);
-        }
+            log(`Estimated Columns: ${columnsX.length}`);
 
-        log(`Estimated Columns: ${columnsX.length}`);
+            // Calculate dynamic search width based on column spacing
+            let searchRadius = 25; // fallback default
+            if (columnsX.length > 1) {
+                const gaps = [];
+                for (let i = 1; i < columnsX.length; i++) gaps.push(columnsX[i] - columnsX[i - 1]);
+                const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+                searchRadius = avgGap * 0.45; // Scan almost half the gap width to left/right
+            }
+            log(`Dynamic Search Radius: ${searchRadius.toFixed(2)}`);
 
-        // Now iterate shift rows and map items to columns
-        for (const { rowIdx, name } of shiftRows) {
-            employees.push(name);
+            // Now iterate shift rows and map items to columns
+            for (const { rowIdx, name } of shiftRows) {
+                employees.push(name);
 
-            // Look at this row (Start Times) and next row (End Times)
-            const startRow = rows[rowIdx];
-            const endRow = (rowIdx + 1 < rows.length) ? rows[rowIdx + 1] : [];
+                // Look at this row (Start Times) and next row (End Times)
+                const startRow = rows[rowIdx];
+                const endRow = (rowIdx + 1 < rows.length) ? rows[rowIdx + 1] : [];
 
-            // COLUMN-CENTRIC APPROACH
-            // Iterate through each estimated column to find items in both rows
-            columnsX.forEach((colX, colIdx) => {
-                const day = colIdx + 1;
+                // COLUMN-CENTRIC APPROACH
+                columnsX.forEach((colX, colIdx) => {
+                    const day = colIdx + 1;
 
-                // Helper to find item in a row near colX
-                const findItemInRow = (r: ParsedItem[]) => {
-                    // Increased tolerance to 24 for wider column matching
-                    return r.find(it => Math.abs((it.x + it.w / 2) - colX) < 24);
-                };
+                    // Find ALL items in this column's vertical strip (covering startRow and endRow)
+                    const inRange = (it: ParsedItem) => Math.abs((it.x + it.w / 2) - colX) < searchRadius;
 
-                const item1 = findItemInRow(startRow);
-                const item2 = findItemInRow(endRow);
+                    const itemsInCell = [
+                        ...startRow.filter(inRange),
+                        ...endRow.filter(inRange)
+                    ];
 
-                if (!item1 && !item2) return;
+                    if (itemsInCell.length === 0) return;
 
-                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    // Sort items by Y descending (Top -> Bottom)
+                    itemsInCell.sort((a, b) => b.y - a.y);
 
-                let type = "";
-                let start = "";
-                let end = "";
+                    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-                // Analyze content of both items
-                const texts = [item1?.str, item2?.str].filter(Boolean).map(s => clean(s!));
+                    let type = "";
+                    let start = "";
+                    let end = "";
 
-                // 1. Check for Holiday/Special Types in EITHER row
-                // Added more keywords: 欠 (Absence), 半 (Half), 遅 (Late), 早 (Early)
-                const typeKeywords = ["公", "休", "有", "希", "欠", "半", "遅", "早"];
-                const foundType = texts.find(t => typeKeywords.some(k => t.includes(k)));
+                    // Analyze content of ALL items in this cell
+                    // We join them to catch split text or analyze individually
+                    // But keeping them separate is safer for now to distinguish Top/Bottom
 
-                if (foundType) {
-                    type = foundType;
-                }
-                // 2. Check for Time Pattern (Start/End)
-                else {
-                    const times = texts.filter(t => isTime(t));
-                    if (times.length > 0) {
-                        type = "Shift";
-                        // Usually first is start, second is end
-                        // But we should trust the row position if possible
-                        if (item1 && isTime(clean(item1.str))) {
-                            start = clean(item1.str);
-                            if (item2 && isTime(clean(item2.str))) {
-                                end = clean(item2.str);
+                    const allTexts = itemsInCell.map(it => clean(it.str));
+
+                    // 1. Check for Holiday/Special Types
+                    const typeKeywords = ["公", "休", "有", "希", "欠", "半", "遅", "早"];
+                    const foundType = allTexts.find(t => typeKeywords.some(k => t.includes(k)));
+
+                    if (foundType) {
+                        type = foundType;
+                    } else {
+                        // 2. Extract Times
+                        // We look for time patterns "H:MM" or "HH:MM"
+                        const timeRegex = /\d{1,2}:\d{2}/g;
+                        const foundTimes: string[] = [];
+
+                        itemsInCell.forEach(item => {
+                            const str = clean(item.str);
+                            const matches = str.match(timeRegex);
+                            if (matches) {
+                                foundTimes.push(...matches);
                             }
-                        } else if (item2 && isTime(clean(item2.str))) {
-                            // Only found time in second row? Maybe just start time or just end time?
-                            // Assume it's start time if only one exists, or fallback
-                            start = clean(item2.str);
+                        });
+
+                        // If we found times, assume:
+                        // 1st time = Start
+                        // 2nd time = End
+                        if (foundTimes.length > 0) {
+                            type = "Shift";
+                            start = foundTimes[0];
+                            if (foundTimes.length > 1) {
+                                end = foundTimes[1];
+                            }
                         }
                     }
-                }
 
-                if (type) {
-                    shifts.push({
-                        date: dateStr,
-                        startTime: start,
-                        endTime: end,
-                        type,
-                        employeeName: name
-                    });
-                }
-            });
+                    if (type) {
+                        shifts.push({
+                            date: dateStr,
+                            startTime: start,
+                            endTime: end,
+                            type,
+                            employeeName: name
+                        });
+                    }
+                });
+            }
+        } else {
+            log("No shift rows found via heuristic.");
         }
-    } else {
-        log("No shift rows found via heuristic.");
+
+        return {
+            month: `${year}-${String(month).padStart(2, '0')}`,
+            employees: Array.from(new Set(employees)),
+            shifts,
+            debugInfo: {
+                totalItems: items.length,
+                rowsDetected: rows.length,
+                yearMonthFound: `${year}-${month}`,
+                dateRowIndex: -1,
+                sampleRows: debugLogs.concat(rows.slice(0, 15).map(row => row.map(r => r.str).join("|"))),
+            }
+        };
     }
-
-    return {
-        month: `${year}-${String(month).padStart(2, '0')}`,
-        employees: Array.from(new Set(employees)),
-        shifts,
-        debugInfo: {
-            totalItems: items.length,
-            rowsDetected: rows.length,
-            yearMonthFound: `${year}-${month}`,
-            dateRowIndex: -1,
-            sampleRows: debugLogs.concat(rows.slice(0, 15).map(row => row.map(r => r.str).join("|"))),
-        }
-    };
-}
