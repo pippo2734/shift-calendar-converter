@@ -106,7 +106,7 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
     let currentY = -1;
 
     for (const item of items) {
-        if (currentY === -1 || Math.abs(item.y - currentY) <= 8) { // Increased tolerance to 8
+        if (currentY === -1 || Math.abs(item.y - currentY) <= 12) { // Increased tolerance to 12
             currentRow.push(item);
             if (currentY === -1) currentY = item.y;
         } else {
@@ -227,7 +227,8 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
 
                 // Helper to find item in a row near colX
                 const findItemInRow = (r: ParsedItem[]) => {
-                    return r.find(it => Math.abs((it.x + it.w / 2) - colX) < 15);
+                    // Increased tolerance to 24 for wider column matching
+                    return r.find(it => Math.abs((it.x + it.w / 2) - colX) < 24);
                 };
 
                 const item1 = findItemInRow(startRow);

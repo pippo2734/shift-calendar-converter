@@ -121,10 +121,10 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                 "is_tentative": "0"
             };
 
-            return headers.map(h => map[h] || "").join("\t");
+            return headers.map(h => map[h] || "").join(",");
         });
 
-        const csvContent = [headers.join("\t"), ...rows].join("\n");
+        const csvContent = [headers.join(","), ...rows].join("\n");
         // Add BOM for Excel/Windows compatibility
         const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8" });
         const url = window.URL.createObjectURL(blob);
