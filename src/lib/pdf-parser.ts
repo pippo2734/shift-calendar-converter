@@ -124,7 +124,7 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
     const timeItems = items.filter(it => isTime(it.str));
     // Use center of the item for X-coordinate
     const timeXCoords = timeItems.map(it => it.x + (it.w || 0) / 2);
-    
+
     timeXCoords.sort((a, b) => a - b);
 
     const columnsX: number[] = [];
@@ -153,8 +153,8 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
     let searchRadius = 25; // fallback default
     if (columnsX.length > 1) {
         const gaps = [];
-        for(let i=1; i<columnsX.length; i++) gaps.push(columnsX[i] - columnsX[i-1]);
-        const avgGap = gaps.reduce((a,b)=>a+b,0) / gaps.length;
+        for (let i = 1; i < columnsX.length; i++) gaps.push(columnsX[i] - columnsX[i - 1]);
+        const avgGap = gaps.reduce((a, b) => a + b, 0) / gaps.length;
         searchRadius = avgGap * 0.45; // Scan almost half the gap width to left/right
     }
     log(`Dynamic Search Radius: ${searchRadius.toFixed(2)}`);
@@ -164,20 +164,20 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
     // Find all items that look like names on the far left
     // We treat them as Y-anchors.
     const potentialNames = items.filter(it => it.x < 100 && isLikelyName(it.str));
-    
+
     // Sort logic handles Y descending, so potentialNames are ordered Top to Bottom.
     // However, sometimes multiple items might be close in Y (e.g. "Name" and "Title").
     // We'll trust our "LikelyName" filter to be specific enough.
     // Actually PDF order might not be strictly top-to-bottom if not sorted well, 
     // but we sorted items at step 1.
-    
+
     // De-dupe names that are too close in Y (same line)
     const uniqueNameAnchors: ParsedItem[] = [];
     let lastY = -9999;
     for (const p of potentialNames) {
         if (Math.abs(p.y - lastY) > 8) { // If distinct vertical position
-             uniqueNameAnchors.push(p);
-             lastY = p.y;
+            uniqueNameAnchors.push(p);
+            lastY = p.y;
         }
     }
     log(`Employee Anchors Found: ${uniqueNameAnchors.length}`);
@@ -198,10 +198,10 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
         // Wait, pdf.js standard coordinate system is Bottom-Left is (0,0). 
         // So Higher Y = Higher on page.
         // items.sort was (b.y - a.y) -> Descending Y -> Top to Bottom.
-        
+
         const topY = anchor.y + 10; // Slightly above name
-        const bottomY = (i + 1 < uniqueNameAnchors.length) 
-            ? uniqueNameAnchors[i+1].y + 10 // Slightly above next name
+        const bottomY = (i + 1 < uniqueNameAnchors.length)
+            ? uniqueNameAnchors[i + 1].y + 10 // Slightly above next name
             : 0; // Bottom of page
 
         // Filter items within this vertical band
@@ -210,53 +210,67 @@ function analyzeShiftData(items: ParsedItem[]): ParseResult {
         // Iterate Columns
         columnsX.forEach((colX, colIdx) => {
             const day = colIdx + 1;
-            
+
             // Find items in this column within this band
-            const cellItems = bandItems.filter(it => Math.abs((it.x + (it.w||0)/2) - colX) < searchRadius);
+            const cellItems = bandItems.filter(it => Math.abs((it.x + (it.w || 0) / 2) - colX) < searchRadius);
 
             if (cellItems.length === 0) return;
 
-            // Sort top-to-bottom within cell
-            cellItems.sort((a,b) => b.y - a.y);
-            
+            // Sort top-to-bottom (High Y to Low Y) within cell
+            // This is critical for knowing which is Start (top) and End (bottom)
+            cellItems.sort((a, b) => b.y - a.y);
+
             const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             let type = "";
             let start = "";
             let end = "";
 
-            const allTexts = cellItems.map(it => clean(it.str));
-            
+            // Join all text in the cell to handle split characters (e.g. "1" "0" ":" "0" "0")
+            // And remove whitespace to handle kerning issues
+            const allText = cellItems.map(it => it.str).join("");
+            const cleanedText = clean(allText);
+
             // Check for Holiday Keywords
+            // Note: If keyword is split like "公" "休", join("") handles it!
             const typeKeywords = ["公", "休", "有", "希", "欠", "半", "遅", "早"];
-            const foundType = allTexts.find(t => typeKeywords.some(k => t.includes(k)));
+            const foundType = typeKeywords.find(k => cleanedText.includes(k));
 
             if (foundType) {
                 type = foundType;
             } else {
                 // Check for Times
-                const timeRegex = /\d{1,2}:\d{2}/g;
-                const foundTimes: string[] = [];
-                cellItems.forEach(it => {
-                     const m = clean(it.str).match(timeRegex);
-                     if (m) foundTimes.push(...m);
-                });
+                // Allow "10:00", "9:00", "09:00"
+                // Also handle Japanese colon "："
+                const timeRegex = /\d{1,2}[:：]\d{2}/g;
+                const matches = cleanedText.match(timeRegex);
 
-                if (foundTimes.length > 0) {
-                    type = "Shift";
-                    start = foundTimes[0];
-                    if (foundTimes.length > 1) {
-                         end = foundTimes[foundTimes.length - 1];
+                if (matches) {
+                    // Filter unique times to handle PDF layering duplicates (e.g. "10:00" twice)
+                    // But wait, if shift is 10:00 - 10:00 (0 min), maybe valid? 
+                    // Usually it's an error. 
+                    // Let's assume distinct times for Start/End unless it's genuinely the same.
+                    // Actually, if we find "10:00" and "19:00", that's 2 distinct.
+                    // If we find "10:00" and "10:00", it's likely a duplicate artifact.
+                    // So let's dedup.
+                    const uniqueTimes = Array.from(new Set(matches));
+
+                    if (uniqueTimes.length > 0) {
+                        type = "Shift";
+                        start = uniqueTimes[0];
+                        if (uniqueTimes.length > 1) {
+                            end = uniqueTimes[uniqueTimes.length - 1]; // Take last distinct time
+                        }
                     }
                 }
             }
 
             if (type) {
                 shifts.push({
-                     date: dateStr,
-                     startTime: start,
-                     endTime: end,
-                     type,
-                     employeeName: name
+                    date: dateStr,
+                    startTime: start,
+                    endTime: end,
+                    type,
+                    employeeName: name
                 });
             }
         });
