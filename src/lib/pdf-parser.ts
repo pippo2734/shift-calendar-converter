@@ -80,7 +80,16 @@ function isLikelyName(str: string) {
     if (s.length < 2) return false;
     if (/\d/.test(s)) return false; // Contains numbers -> unlikely to be name (in this context)
     // Check for some kana/kanji ranges (simplified)
-    return /[一-龠ぁ-んァ-ン]/.test(s);
+    if (!/[一-龠ぁ-んァ-ン]/.test(s)) return false;
+
+    // Blocklist for non-employee headers (based on user feedback)
+    const blocklist = [
+        "店舗", "部門", "人数", "予算", "人時", "連絡事項", "従業員", "合計", "定休日",
+        "RURA", "共通", "足人", "剰人", "要人", "入人"
+    ];
+    if (blocklist.some(b => s.includes(b))) return false;
+
+    return true;
 }
 
 function analyzeShiftData(items: ParsedItem[]): ParseResult {
