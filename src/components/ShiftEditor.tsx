@@ -125,8 +125,21 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
         });
 
         const csvContent = [headers.join(","), ...rows].join("\n");
-        // Add BOM for Excel/Windows compatibility
-        const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8" });
+        
+        // Convert string to UTF-16LE with BOM
+        // 1. Create a buffer for the BOM (2 bytes) + content (2 bytes per char)
+        const contentBuffer = new ArrayBuffer(2 + csvContent.length * 2);
+        const view = new DataView(contentBuffer);
+        
+        // 2. Write BOM (0xFF, 0xFE) for Little Endian
+        view.setUint16(0, 0xFEFF, true); // true = littleEndian
+
+        // 3. Write characters
+        for (let i = 0; i < csvContent.length; i++) {
+            view.setUint16(2 + i * 2, csvContent.charCodeAt(i), true); // true = littleEndian
+        }
+
+        const blob = new Blob([contentBuffer], { type: "text/csv;charset=utf-16le" });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
