@@ -266,7 +266,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                         )}
                     >
                         <Download className="w-4 h-4" />
-                        CSV出力 (会社用)
+                        CSV出力 (会社用 v1.0.2)
                     </button>
 
                     {/* ICS Export */}
