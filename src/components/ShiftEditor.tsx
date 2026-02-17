@@ -52,8 +52,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             "limit_type", "limit_count", "limit_date", "recurrent_except_rule", "recurrent_except_target",
             "reserve1", "reserve2", "reserve3", "reserve4", "reserve5", "reserve6", "reserve7",
             "reserve8", "reserve9", "reserve10", "exceptional_list", "attendee_delegate", "is_tentative",
-            "id", "container", "parent", "thread_id", "description", "type", "format", "issued",
-            "available", "sort_order"
+            "id", "container", "parent", "thread_id", "description"
         ];
 
         const userId = "U:CJK:20665";
@@ -125,12 +124,12 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
         });
 
         const csvContent = [headers.join(","), ...rows].join("\n");
-        
+
         // Convert string to UTF-16LE with BOM
         // 1. Create a buffer for the BOM (2 bytes) + content (2 bytes per char)
         const contentBuffer = new ArrayBuffer(2 + csvContent.length * 2);
         const view = new DataView(contentBuffer);
-        
+
         // 2. Write BOM (0xFF, 0xFE) for Little Endian
         view.setUint16(0, 0xFEFF, true); // true = littleEndian
 
