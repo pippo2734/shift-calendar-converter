@@ -38,111 +38,63 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             return;
         }
 
+        // Standard Garoon/Cybozu Import Format
+        // Header: 日付,開始時刻,終了時刻,予定,メモ
         const headers = [
-            "created", "creator", "modified", "modifier", "child_modified", "title", "label", "color",
-            "is_all_day", "timezone", "dtstart", "dtend", "successor", "attendee", "facility",
-            "facility_approval", "web_meeting_external_service", "web_meeting_url", "no_notify",
-            "organizer", "organizer_belonging_groups", "body", "body_format", "holiday", "substitute",
-            "location", "address", "icons", "attachment", "addressUser", "banner", "scope",
-            "public_to_secretary", "additional_public", "is_confidential", "allow_attendee_edit",
-            "view_presence_on_news", "default_presence", "create_as_secretary", "delegate_allowed",
-            "send_mail", "alarm_time", "mail_type", "intent_from", "first_day_of_week", "recurrence",
-            "recurrent_type", "recurrent_interval", "month_of_year", "recurrent_subtype", "days_of_week",
-            "day_of_month", "week_of_month", "day_of_week", "irregular_dates", "recurrent_start",
-            "limit_type", "limit_count", "limit_date", "recurrent_except_rule", "recurrent_except_target",
-            "reserve1", "reserve2", "reserve3", "reserve4", "reserve5", "reserve6", "reserve7",
-            "reserve8", "reserve9", "reserve10", "exceptional_list", "attendee_delegate", "is_tentative",
-            "id", "container", "parent", "thread_id", "description"
+            "日付", "開始時刻", "終了時刻", "予定", "メモ"
         ];
-
-        const userId = "U:CJK:20665";
 
         const rows = employeeShifts.map(shift => {
             const isShift = shift.type === "Shift";
-            const isAllDay = !isShift;
 
-            let title = "在宅";
-            let isBanner = "0";
+            // Format Date as YYYY/MM/DD
+            const [y, m, d] = shift.date.split("-");
+            const dateStr = `${y}/${m}/${d}`;
 
-            if (!isShift) {
-                // Holiday -> Schedule (0)
-                isBanner = "0";
-                // User requested everything (including Paid Leave "有給") to be "公休"
+            let startTime = "";
+            let endTime = "";
+            let title = "";
+            let memo = "";
+
+            if (isShift && shift.startTime && shift.endTime) {
+                startTime = shift.startTime;
+                endTime = shift.endTime;
+                title = "在宅";
+            } else {
+                // Holiday -> No Time -> All Day Event (Banner)
                 title = "公休";
-            } else {
-                // Shift -> Banner (1)
-                isBanner = "1";
             }
 
-            let startStr = "";
-            let endStr = "";
-
-            if (isAllDay) {
-                startStr = formatCsvDate(shift.date);
-                const [y, m, d] = shift.date.split("-").map(Number);
-                const nextDay = new Date(y, m - 1, d);
-                nextDay.setDate(nextDay.getDate() + 1);
-                const ny = nextDay.getFullYear();
-                const nm = String(nextDay.getMonth() + 1).padStart(2, '0');
-                const nd = String(nextDay.getDate()).padStart(2, '0');
-                endStr = `dt${ny}-${nm}-${nd} 00:00:00`;
-            } else {
-                startStr = formatCsvDate(shift.date, shift.startTime);
-                const [y, m, d] = shift.date.split("-").map(Number);
-                const [sh, sm] = shift.startTime!.split(":").map(Number);
-                const [eh, em] = shift.endTime!.split(":").map(Number);
-
-                let endY = y, endM = m, endD = d;
-                if (eh < sh) {
-                    const next = new Date(y, m - 1, d);
-                    next.setDate(next.getDate() + 1);
-                    endY = next.getFullYear();
-                    endM = next.getMonth() + 1;
-                    endD = next.getDate();
-                }
-                endStr = `dt${endY}-${String(endM).padStart(2, '0')}-${String(endD).padStart(2, '0')} ${shift.endTime}:00`;
-            }
-
-            const map: Record<string, string> = {
-                "created": userId,
-                "modifier": userId,
-                "title": title,
-                "is_all_day": isAllDay ? "1" : "0",
-                "timezone": "Asia/Tokyo",
-                "dtstart": startStr,
-                "dtend": endStr,
-                "body_format": "text/plain",
-                "banner": isBanner,
-                "scope": "public",
-                "public_to_secretary": "1",
-                "send_mail": "0",
-                "mail_type": "none",
-                "is_tentative": "0"
-            };
-
-            return headers.map(h => map[h] || "").join(",");
+            // Map to array order
+            return [
+                dateStr,
+                startTime,
+                endTime,
+                title,
+                memo
+            ].map(v => `"${v}"`).join(",");
+            // Quote values for CSV safety
         });
 
         const csvContent = [headers.join(","), ...rows].join("\n");
 
-        // Convert string to UTF-16LE with BOM
-        // 1. Create a buffer for the BOM (2 bytes) + content (2 bytes per char)
+        // Convert string to UTF-16LE with BOM (Required for Windows/Excel/Garoon)
         const contentBuffer = new ArrayBuffer(2 + csvContent.length * 2);
         const view = new DataView(contentBuffer);
 
-        // 2. Write BOM (0xFF, 0xFE) for Little Endian
-        view.setUint16(0, 0xFEFF, true); // true = littleEndian
+        // BOM (0xFF, 0xFE)
+        view.setUint16(0, 0xFEFF, true);
 
-        // 3. Write characters
+        // Write content
         for (let i = 0; i < csvContent.length; i++) {
-            view.setUint16(2 + i * 2, csvContent.charCodeAt(i), true); // true = littleEndian
+            view.setUint16(2 + i * 2, csvContent.charCodeAt(i), true);
         }
 
         const blob = new Blob([contentBuffer], { type: "text/csv;charset=utf-16le" });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.setAttribute("download", `company_import_${selectedEmployee}_${data.month}.csv`);
+        link.setAttribute("download", `import_schedule_${selectedEmployee}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
