@@ -218,7 +218,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                         )}
                     >
                         <Download className="w-4 h-4" />
-                        CSV出力 (最小英語形式 v1.2)
+                        CSV出力 (確定版 v1.3)
                     </button>
 
                     {/* ICS Export */}
