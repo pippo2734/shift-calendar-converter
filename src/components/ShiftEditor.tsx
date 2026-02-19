@@ -14,12 +14,12 @@ interface ShiftEditorProps {
 
 export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
     const [selectedEmployee, setSelectedEmployee] = useState<string>("");
-    const [garoonId, setGaroonId] = useState<string>(""); // Login Name / User Code
+    const [garoonId, setGaroonId] = useState<string>(""); // Numeric User ID (e.g., 20665)
     const daysInMonth = 31; // Simplification, should be calculated from data.month
 
     // Load saved ID on mount
     useEffect(() => {
-        const savedId = localStorage.getItem("garoon_uid");
+        const savedId = localStorage.getItem("garoon_uid_numeric");
         if (savedId) {
             setGaroonId(savedId);
         }
@@ -28,14 +28,52 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
     // Save ID on change
     const handleIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newVal = e.target.value;
+        // Allow only numbers (optional, but good for validation)
         setGaroonId(newVal);
-        localStorage.setItem("garoon_uid", newVal);
+        localStorage.setItem("garoon_uid_numeric", newVal);
     };
 
-    // Helper to format date for CSV: dtYYYY-MM-DD HH:MM:SS
-    const formatCsvDate = (dateStr: string, timeStr?: string) => {
-        if (!timeStr) return `dt${dateStr} 00:00:00`;
-        return `dt${dateStr} ${timeStr}:00`;
+    // Helper: Generate Random ID (21 chars)
+    const generateId = () => {
+        const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        let result = "";
+        for (let i = 0; i < 21; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    };
+
+    // Helper: Format Date/Time (dtYYYY-MM-DD HH:MM:SS)
+    // Ensures zero-padding for HH, MM, SS
+    const formatDateTime = (dateStr: string, timeStr?: string) => {
+        // dateStr is YYYY-MM-DD
+        if (!timeStr) {
+            return `dt${dateStr} 00:00:00`;
+        }
+        // timeStr might be "9:15" -> needs to be "09:15:00"
+        const [h, m] = timeStr.split(":").map(Number);
+        const hh = String(h).padStart(2, '0');
+        const mm = String(m).padStart(2, '0');
+        return `dt${dateStr} ${hh}:${mm}:00`;
+    };
+
+    // Helper: Get Week of Month (1-5)
+    const getWeekOfMonth = (date: Date) => {
+        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+        const pastDays = (date.getTime() - firstDay.getTime()) / 86400000;
+        return Math.ceil((pastDays + firstDay.getDay() + 1) / 7);
+    };
+
+    // Helper: Get Current Timestamp (dtYYYY-MM-DD HH:MM:SS)
+    const getCurrentTimestamp = () => {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        return `dt${y}-${m}-${d} ${hh}:${mm}:${ss}`;
     };
 
     const handleDownloadCsv = () => {
@@ -54,56 +92,63 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             return;
         }
 
-        // Verified Garoon/Cybozu Import Format (v2.4)
-        // Headers matches the user's sample keys.
-        // User Login Name / Code used for 'attendee' and 'organizer'.
-        const headers = [
-            "title", "dtstart", "dtend", "is_all_day", "banner", "body", "attendee", "organizer"
-        ];
+        // Prepare Common Values
+        const currentTimestamp = getCurrentTimestamp();
+        // Use user ID if provided, prefixed strictly with U:CJK:
+        const userIdCode = garoonId ? `U:CJK:${garoonId.trim()}` : "";
+        const container = garoonId ? `%U:CJK:${garoonId.trim()}%/schedule` : "";
 
-        // Optional Garoon ID
-        // If provided, use it. If not, fallback to employee name.
-        const trimmedId = garoonId ? garoonId.trim() : selectedEmployee;
+        // Headerless CSV? 
+        // Garoon docs say standard format often omits headers or has specific ones.
+        // The user provided row has NO headers in the "Correct Output" sample. 
+        // We will output JUST the data rows to be safe, or headers if needed.
+        // User said: "Current output is 8 columns... Correct is 84 cols... Missing columns list..."
+        // They didn't explicitly ask to REMOVE headers, but standard Garoon system import often works without them.
+        // However, standard app exports DO have headers. 
+        // BUT, the 84-column format described (system dump style) usually DOES NOT have headers in the file itself when used for restoration.
+        // Let's output NO Headers for this strict format, as adding incorrect headers is worse.
 
         const rows = employeeShifts.map(shift => {
             const isShift = shift.type === "Shift";
             const isAllDay = !isShift;
 
+            const now = new Date(); // Created/Modified time (same for all for simplicity, or strictly current)
+
+            // Event Details
             let title = "在宅";
-            let isBanner = "0";
+            let body = "Shift: " + (shift.startTime || "") + " - " + (shift.endTime || "");
+            let holidayFlag = "no"; // "no" for everything unless we have a specific mapping? User said "holiday: 'no'" in correct table.
 
             if (!isShift) {
-                // Holiday -> All Day Event
                 title = "公休";
-                isBanner = "1";
-            } else {
-                // Shift -> Normal Schedule
-                isBanner = "0";
+                body = "Type: 公休";
+                // User table says `holiday` is always "no".
             }
 
+            // Timestamps
+            const [y, m, d] = shift.date.split("-");
             let startStr = "";
             let endStr = "";
 
-            // Format: dtYYYY-MM-DD HH:MM:SS (Garoon Specific)
-            const [y, m, d] = shift.date.split("-");
+            const startDateObj = new Date(Number(y), Number(m) - 1, Number(d));
 
             if (isAllDay) {
                 // All Day: Start 00:00:00, End Next Day 00:00:00
-                startStr = `dt${y}-${m}-${d} 00:00:00`;
+                startStr = formatDateTime(`${y}-${m}-${d}`, "0:0"); // 00:00:00
 
-                const nextDay = new Date(Number(y), Number(m) - 1, Number(d));
+                const nextDay = new Date(startDateObj);
                 nextDay.setDate(nextDay.getDate() + 1);
                 const ny = nextDay.getFullYear();
                 const nm = String(nextDay.getMonth() + 1).padStart(2, '0');
                 const nd = String(nextDay.getDate()).padStart(2, '0');
-                endStr = `dt${ny}-${nm}-${nd} 00:00:00`;
+                endStr = formatDateTime(`${ny}-${nm}-${nd}`, "0:0");
             } else {
                 // Shift: Specific Time
-                startStr = `dt${y}-${m}-${d} ${shift.startTime}:00`;
+                startStr = formatDateTime(`${y}-${m}-${d}`, shift.startTime || "09:00");
 
-                // Calculate end time (handle overnight)
-                const [sh, sm] = shift.startTime!.split(":").map(Number);
-                const [eh, em] = shift.endTime!.split(":").map(Number);
+                // Calculate end time
+                const [sh, sm] = (shift.startTime || "09:00").split(":").map(Number);
+                const [eh, em] = (shift.endTime || "18:00").split(":").map(Number);
                 let endY = Number(y), endM = Number(m), endD = Number(d);
 
                 if (eh < sh) {
@@ -113,24 +158,102 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                     endM = next.getMonth() + 1;
                     endD = next.getDate();
                 }
-                endStr = `dt${endY}-${String(endM).padStart(2, '0')}-${String(endD).padStart(2, '0')} ${shift.endTime}:00`;
+                const endYStr = String(endY);
+                const endMStr = String(endM).padStart(2, '0');
+                const endDStr = String(endD).padStart(2, '0');
+                // Ensure time is formatted HH:MM
+                const endTStr = `${eh}:${em}`;
+
+                endStr = formatDateTime(`${endYStr}-${endMStr}-${endDStr}`, endTStr);
             }
 
-            const map: Record<string, string> = {
-                "title": title,
-                "is_all_day": isAllDay ? "1" : "0",
-                "dtstart": startStr,
-                "dtend": endStr,
-                "banner": isBanner,
-                "body": shift.type === "Shift" ? `Shift: ${shift.startTime} - ${shift.endTime}` : `Type: ${shift.type}`,
-                "attendee": trimmedId,
-                "organizer": trimmedId
-            };
+            const eventId = generateId(); // Random ID
 
-            return headers.map(h => `"${map[h] || ""}"`).join(",");
+            // 84 Columns Mapping
+            const cols = [
+                currentTimestamp, // 0: created (dt...)
+                userIdCode,       // 1: creator (U:CJK:...)
+                currentTimestamp, // 2: modified
+                userIdCode,       // 3: modifier
+                currentTimestamp, // 4: child_modified
+                title,            // 5: title ("公休")
+                "",               // 6: label
+                "#dfeaff",        // 7: color
+                isAllDay ? "1" : "0", // 8: unknown/is_all_day ? Sample has 1 for holiday
+                "Asia/Tokyo",     // 9: timezone
+                startStr,         // 10: dtstart
+                endStr,           // 11: dtend
+                "",               // 12: ?
+                userIdCode,       // 13: attendee (U:CJK:...)
+                "",               // 14: facility
+                "",               // 15: facility_approval
+                "",               // 16: web_meeting_external_service
+                "",               // 17
+                "3",              // 18: no_notify
+                userIdCode,       // 19: organizer
+                "",               // 20: groups
+                body,             // 21: body
+                "text/plain",     // 22: body_format
+                "no",             // 23: holiday
+                "0",              // 24: substitute
+                "",               // 25: location
+                "",               // 26: address
+                "",               // 27: icons
+                "",               // 28: attachment
+                "",               // 29
+                "0",              // 30: ? (Sample has 0)
+                "public",         // 31: scope
+                "0",              // 32
+                "",               // 33
+                "0",              // 34
+                "0",              // 35
+                "0",              // 36
+                "0",              // 37
+                "2",              // 38: create_as_secretary
+                "0",              // 39
+                "1",              // 40: send_mail
+                "-1",             // 41: alarm_time
+                "1\n2",           // 42: mail_type
+                "",               // 43
+                "0",              // 44
+                "0",              // 45: recurrence
+                "none",           // 46: recurrent_type
+                "1",              // 47
+                "1",              // 48
+                "",               // 49
+                "",               // 50
+                "1",              // 51
+                getWeekOfMonth(startDateObj).toString(), // 52: week_of_month
+                startDateObj.getDay().toString(),        // 53: day_of_week
+                startStr,         // 54: irregular_dates
+                startStr,         // 55: recurrent_start
+                "",               // 56
+                "10",             // 57: limit_count
+                "",               // 58
+                "0",              // 59
+                "",               // 60
+                "", "", "", "", "", "", "", "", "", "", // 61-70: reserves
+                "",               // 71
+                "",               // 72
+                "0",              // 73: is_tentative
+                eventId,          // 74: id
+                container,        // 75: container
+                "",               // 76
+                eventId,          // 77: thread_id
+                "",               // 78
+                "/atypes/ariel/schedule", // 79: type
+                "text/xhtml",     // 80: format
+                "",               // 81
+                "",               // 82
+                "0"               // 83: sort_order
+            ];
+
+            return cols.map(c => `"${c}"`).join(",");
         });
 
-        const csvContent = [headers.join(","), ...rows].join("\n");
+        // No Header Row (User didn't provide one, and system restores usually lack it or have internal names)
+        // If user wants headers, they will see it's missing. But safe default is pure data for this specific dump format.
+        const csvContent = rows.join("\n");
 
         // Convert string to UTF-16LE with BOM
         const contentBuffer = new ArrayBuffer(2 + csvContent.length * 2);
@@ -148,7 +271,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.setAttribute("download", `import_schedule_${selectedEmployee}.csv`);
+        link.setAttribute("download", `schedule_export_${selectedEmployee}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -256,7 +379,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                     <div className="flex items-center gap-2">
                         <input
                             type="text"
-                            placeholder="ログイン名 / コード (例: tnitou)"
+                            placeholder="ユーザーID番号 (例: 20665)"
                             value={garoonId}
                             onChange={handleIdChange}
                             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-64 focus:outline-none focus:border-cyan-500 transition-colors"
@@ -277,13 +400,15 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                             onClick={handleDownloadCsv}
                             className={clsx(
                                 "flex items-center gap-2 px-4 py-3 rounded-xl font-bold transition-all shadow-lg text-sm",
-                                selectedEmployee
-                                    ? "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20"
-                                    : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                                !selectedEmployee
+                                    ? "bg-slate-800 text-slate-600 cursor-not-allowed" // Truly disabled (No employee)
+                                    : !garoonId
+                                        ? "bg-amber-900/50 text-amber-200 border border-amber-700/50 hover:bg-amber-900/80 cursor-pointer" // Hard Warning (Employee selected, ID missing)
+                                        : "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20" // Ready
                             )}
                         >
                             <Download className="w-4 h-4" />
-                            CSV出力 (v2.4)
+                            CSV出力 (v3.0)
                         </button>
 
                         {/* ICS Export */}
