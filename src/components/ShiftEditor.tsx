@@ -5,7 +5,7 @@ import { ParseResult, ShiftEvent } from "@/types";
 import { motion } from "framer-motion";
 import { Calendar as CalendarIcon, Download, User } from "lucide-react";
 import { clsx } from "clsx";
-import * as ics from "ics";
+
 
 interface ShiftEditorProps {
     data: ParseResult;
@@ -19,9 +19,13 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
     // Load saved ID on mount
     useEffect(() => {
-        const savedId = localStorage.getItem("garoon_uid_numeric");
-        if (savedId) {
-            setGaroonId(savedId);
+        try {
+            const savedId = localStorage.getItem("garoon_uid_numeric");
+            if (savedId) {
+                setGaroonId(savedId);
+            }
+        } catch (e) {
+            console.error("LocalStorage access failed", e);
         }
     }, []);
 
@@ -98,15 +102,26 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
         const userIdCode = garoonId ? `U:CJK:${garoonId.trim()}` : "";
         const container = garoonId ? `%U:CJK:${garoonId.trim()}%/schedule` : "";
 
-        // Headerless CSV? 
-        // Garoon docs say standard format often omits headers or has specific ones.
-        // The user provided row has NO headers in the "Correct Output" sample. 
-        // We will output JUST the data rows to be safe, or headers if needed.
-        // User said: "Current output is 8 columns... Correct is 84 cols... Missing columns list..."
-        // They didn't explicitly ask to REMOVE headers, but standard Garoon system import often works without them.
-        // However, standard app exports DO have headers. 
-        // BUT, the 84-column format described (system dump style) usually DOES NOT have headers in the file itself when used for restoration.
-        // Let's output NO Headers for this strict format, as adding incorrect headers is worse.
+        // 84 Headers to match Garoon Specs and prevent "Unknown field" errors
+        const headers = [
+            "created", "creator", "modified", "modifier", "child_modified",
+            "title", "label", "color", "is_all_day", "timezone",
+            "dtstart", "dtend", "successor", "attendee", "facility",
+            "facility_approval", "web_meeting_external_service", "web_meeting_url", "no_notify", "organizer",
+            "organizer_belonging_groups", "body", "body_format", "holiday", "substitute",
+            "location", "address", "icons", "attachment", "addressUser",
+            "public_to_secretary", "scope", "additional_public", "is_confidential", "allow_attendee_edit",
+            "view_presence_on_news", "default_presence", "create_as_secretary", "delegate_allowed", "send_mail",
+            "alarm_time", "mail_type", "intent_from", "first_day_of_week", "recurrence",
+            "recurrent_type", "recurrent_interval", "month_of_year", "recurrent_subtype", "days_of_week",
+            "day_of_month", "week_of_month", "day_of_week", "irregular_dates", "recurrent_start",
+            "limit_type", "limit_count", "limit_date", "recurrent_except_rule", "recurrent_except_target",
+            "reserve1", "reserve2", "reserve3", "reserve4", "reserve5",
+            "reserve6", "reserve7", "reserve8", "reserve9", "reserve10",
+            "exceptional_list", "attendee_delegate", "is_tentative", "id", "container",
+            "parent", "thread_id", "description", "type", "format",
+            "issued", "available", "sort_order"
+        ];
 
         const rows = employeeShifts.map(shift => {
             const isShift = shift.type === "Shift";
@@ -251,9 +266,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             return cols.map(c => `"${c}"`).join(",");
         });
 
-        // No Header Row (User didn't provide one, and system restores usually lack it or have internal names)
-        // If user wants headers, they will see it's missing. But safe default is pure data for this specific dump format.
-        const csvContent = rows.join("\n");
+        const csvContent = [headers.map(h => `"${h}"`).join(","), ...rows].join("\n");
 
         // Convert string to UTF-16LE with BOM
         const contentBuffer = new ArrayBuffer(2 + csvContent.length * 2);
@@ -279,6 +292,9 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
     const handleDownloadIcs = async () => {
         if (!selectedEmployee) return;
+
+        // Dynamically import ics to avoid SSR/Client init crashes
+        const ics = (await import("ics"));
 
         // Filter for valid shifts (including Shift, Holiday, etc.)
         const employeeShifts = data.shifts.filter(s =>
