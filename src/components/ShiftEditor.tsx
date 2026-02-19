@@ -14,6 +14,7 @@ interface ShiftEditorProps {
 
 export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
     const [selectedEmployee, setSelectedEmployee] = useState<string>("");
+    const [garoonId, setGaroonId] = useState<string>(""); // User input for Garoon ID
     const daysInMonth = 31; // Simplification, should be calculated from data.month
 
     // Helper to format date for CSV: dtYYYY-MM-DD HH:MM:SS
@@ -24,6 +25,12 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
     const handleDownloadCsv = () => {
         if (!selectedEmployee) return;
+
+        // Require Garoon ID to prevent "User Not Found" errors
+        if (!garoonId) {
+            alert("Garoon Import用のユーザーID (例: U:CJK:123 など) を入力してください。\nCSVの 'attendee' 列に使用されます。");
+            return;
+        }
 
         const employeeShifts = data.shifts.filter(s =>
             s.employeeName === selectedEmployee &&
@@ -38,7 +45,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             return;
         }
 
-        // Verified Garoon/Cybozu Import Format (v1.6)
+        // Verified Garoon/Cybozu Import Format (v2.0)
         // Headers matches the user's sample keys: "title", "dtstart", "dtend", "is_all_day", "banner", "body", "attendee"
         // Dates must be prefixed with 'dt'
         // 'attendee' is strictly required for import.
@@ -104,7 +111,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                 "dtend": endStr,
                 "banner": isBanner,
                 "body": shift.type === "Shift" ? `Shift: ${shift.startTime} - ${shift.endTime}` : `Type: ${shift.type}`,
-                "attendee": selectedEmployee
+                "attendee": garoonId // Use the user-provided ID
             };
 
             return headers.map(h => `"${map[h] || ""}"`).join(",");
@@ -232,43 +239,55 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                     <p className="text-slate-400">名前を選択してカレンダーを出力してください。</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4">
-                    <button
-                        onClick={onReset}
-                        className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
-                    >
-                        ファイルを再アップロード
-                    </button>
+                <div className="flex flex-col items-end gap-3">
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            placeholder="ユーザーID (例: U:CJK:xxxxx)"
+                            value={garoonId}
+                            onChange={(e) => setGaroonId(e.target.value)}
+                            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-64 focus:outline-none focus:border-cyan-500 transition-colors"
+                        />
+                    </div>
 
-                    {/* CSV Export */}
-                    <button
-                        disabled={!selectedEmployee}
-                        onClick={handleDownloadCsv}
-                        className={clsx(
-                            "flex items-center gap-2 px-4 py-3 rounded-xl font-bold transition-all shadow-lg text-sm",
-                            selectedEmployee
-                                ? "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20"
-                                : "bg-slate-800 text-slate-600 cursor-not-allowed"
-                        )}
-                    >
-                        <Download className="w-4 h-4" />
-                        CSV出力 (確定版 v1.6)
-                    </button>
+                    <div className="flex flex-wrap items-center gap-4">
+                        <button
+                            onClick={onReset}
+                            className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                        >
+                            再アップロード
+                        </button>
 
-                    {/* ICS Export */}
-                    <button
-                        disabled={!selectedEmployee}
-                        onClick={handleDownloadIcs}
-                        className={clsx(
-                            "flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg",
-                            selectedEmployee
-                                ? "bg-gradient-to-r from-cyan-500 to-blue-600 hover:shadow-cyan-500/25 text-white"
-                                : "bg-slate-700 text-slate-500 cursor-not-allowed"
-                        )}
-                    >
-                        <Download className="w-5 h-5" />
-                        カレンダー登録 (ICS)
-                    </button>
+                        {/* CSV Export */}
+                        <button
+                            disabled={!selectedEmployee}
+                            onClick={handleDownloadCsv}
+                            className={clsx(
+                                "flex items-center gap-2 px-4 py-3 rounded-xl font-bold transition-all shadow-lg text-sm",
+                                selectedEmployee && garoonId
+                                    ? "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20"
+                                    : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                            )}
+                        >
+                            <Download className="w-4 h-4" />
+                            CSV出力 (v2.0)
+                        </button>
+
+                        {/* ICS Export */}
+                        <button
+                            disabled={!selectedEmployee}
+                            onClick={handleDownloadIcs}
+                            className={clsx(
+                                "flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg",
+                                selectedEmployee
+                                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 hover:shadow-cyan-500/25 text-white"
+                                    : "bg-slate-700 text-slate-500 cursor-not-allowed"
+                            )}
+                        >
+                            <Download className="w-5 h-5" />
+                            カレンダー (ICS)
+                        </button>
+                    </div>
                 </div>
             </div>
 
