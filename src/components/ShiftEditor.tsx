@@ -52,7 +52,9 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             "title", "dtstart", "dtend", "is_all_day", "banner", "body", "attendee", "organizer"
         ];
 
-        const trimmedId = garoonId.trim();
+        // Optional Garoon ID
+        // If provided, use it. If not, fallback to employee name (which might fail import, but user requested this).
+        const trimmedId = garoonId ? garoonId.trim() : selectedEmployee;
 
         const rows = employeeShifts.map(shift => {
             const isShift = shift.type === "Shift";
@@ -113,7 +115,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                 "banner": isBanner,
                 "body": shift.type === "Shift" ? `Shift: ${shift.startTime} - ${shift.endTime}` : `Type: ${shift.type}`,
                 "attendee": trimmedId,
-                "organizer": trimmedId // Set organizer to same user
+                "organizer": trimmedId
             };
 
             return headers.map(h => `"${map[h] || ""}"`).join(",");
@@ -266,15 +268,13 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                             onClick={handleDownloadCsv}
                             className={clsx(
                                 "flex items-center gap-2 px-4 py-3 rounded-xl font-bold transition-all shadow-lg text-sm",
-                                !selectedEmployee
-                                    ? "bg-slate-800 text-slate-600 cursor-not-allowed" // Truly disabled (No employee)
-                                    : !garoonId
-                                        ? "bg-amber-900/50 text-amber-200 border border-amber-700/50 hover:bg-amber-900/80 cursor-pointer" // Hard Warning (Employee selected, ID missing)
-                                        : "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20" // Ready
+                                selectedEmployee
+                                    ? "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20"
+                                    : "bg-slate-800 text-slate-600 cursor-not-allowed"
                             )}
                         >
                             <Download className="w-4 h-4" />
-                            CSV出力 (v2.2)
+                            CSV出力 (v2.3)
                         </button>
 
                         {/* ICS Export */}
