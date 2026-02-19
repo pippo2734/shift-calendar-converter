@@ -45,13 +45,14 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             return;
         }
 
-        // Verified Garoon/Cybozu Import Format (v2.0)
-        // Headers matches the user's sample keys: "title", "dtstart", "dtend", "is_all_day", "banner", "body", "attendee"
-        // Dates must be prefixed with 'dt'
-        // 'attendee' is strictly required for import.
+        // Verified Garoon/Cybozu Import Format (v2.1)
+        // Headers matches the user's sample keys.
+        // Added 'organizer' just in case.
         const headers = [
-            "title", "dtstart", "dtend", "is_all_day", "banner", "body", "attendee"
+            "title", "dtstart", "dtend", "is_all_day", "banner", "body", "attendee", "organizer"
         ];
+
+        const trimmedId = garoonId.trim();
 
         const rows = employeeShifts.map(shift => {
             const isShift = shift.type === "Shift";
@@ -111,7 +112,8 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                 "dtend": endStr,
                 "banner": isBanner,
                 "body": shift.type === "Shift" ? `Shift: ${shift.startTime} - ${shift.endTime}` : `Type: ${shift.type}`,
-                "attendee": garoonId // Use the user-provided ID
+                "attendee": trimmedId,
+                "organizer": trimmedId // Set organizer to same user
             };
 
             return headers.map(h => `"${map[h] || ""}"`).join(",");
@@ -270,7 +272,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                             )}
                         >
                             <Download className="w-4 h-4" />
-                            CSV出力 (v2.0)
+                            CSV出力 (v2.1)
                         </button>
 
                         {/* ICS Export */}
