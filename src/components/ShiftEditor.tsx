@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ParseResult, ShiftEvent } from "@/types";
 import { motion } from "framer-motion";
 import { Calendar as CalendarIcon, Download, User } from "lucide-react";
@@ -14,8 +14,23 @@ interface ShiftEditorProps {
 
 export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
     const [selectedEmployee, setSelectedEmployee] = useState<string>("");
-    const [garoonId, setGaroonId] = useState<string>(""); // User input for Garoon ID
+    const [garoonId, setGaroonId] = useState<string>(""); // Login Name / User Code
     const daysInMonth = 31; // Simplification, should be calculated from data.month
+
+    // Load saved ID on mount
+    useEffect(() => {
+        const savedId = localStorage.getItem("garoon_uid");
+        if (savedId) {
+            setGaroonId(savedId);
+        }
+    }, []);
+
+    // Save ID on change
+    const handleIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newVal = e.target.value;
+        setGaroonId(newVal);
+        localStorage.setItem("garoon_uid", newVal);
+    };
 
     // Helper to format date for CSV: dtYYYY-MM-DD HH:MM:SS
     const formatCsvDate = (dateStr: string, timeStr?: string) => {
@@ -25,12 +40,6 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
     const handleDownloadCsv = () => {
         if (!selectedEmployee) return;
-
-        // Require Garoon ID to prevent "User Not Found" errors
-        if (!garoonId) {
-            alert("Garoon Import用のユーザーID (例: U:CJK:123 など) を入力してください。\nCSVの 'attendee' 列に使用されます。");
-            return;
-        }
 
         const employeeShifts = data.shifts.filter(s =>
             s.employeeName === selectedEmployee &&
@@ -45,15 +54,15 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             return;
         }
 
-        // Verified Garoon/Cybozu Import Format (v2.1)
+        // Verified Garoon/Cybozu Import Format (v2.4)
         // Headers matches the user's sample keys.
-        // Added 'organizer' just in case.
+        // User Login Name / Code used for 'attendee' and 'organizer'.
         const headers = [
             "title", "dtstart", "dtend", "is_all_day", "banner", "body", "attendee", "organizer"
         ];
 
         // Optional Garoon ID
-        // If provided, use it. If not, fallback to employee name (which might fail import, but user requested this).
+        // If provided, use it. If not, fallback to employee name.
         const trimmedId = garoonId ? garoonId.trim() : selectedEmployee;
 
         const rows = employeeShifts.map(shift => {
@@ -247,9 +256,9 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                     <div className="flex items-center gap-2">
                         <input
                             type="text"
-                            placeholder="ユーザーID (例: U:CJK:xxxxx)"
+                            placeholder="ログイン名 / コード (例: tnitou)"
                             value={garoonId}
-                            onChange={(e) => setGaroonId(e.target.value)}
+                            onChange={handleIdChange}
                             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-64 focus:outline-none focus:border-cyan-500 transition-colors"
                         />
                     </div>
@@ -274,7 +283,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                             )}
                         >
                             <Download className="w-4 h-4" />
-                            CSV出力 (v2.3)
+                            CSV出力 (v2.4)
                         </button>
 
                         {/* ICS Export */}
