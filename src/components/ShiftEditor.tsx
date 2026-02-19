@@ -266,13 +266,15 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                             onClick={handleDownloadCsv}
                             className={clsx(
                                 "flex items-center gap-2 px-4 py-3 rounded-xl font-bold transition-all shadow-lg text-sm",
-                                selectedEmployee && garoonId
-                                    ? "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20"
-                                    : "bg-slate-800 text-slate-600 cursor-not-allowed"
+                                !selectedEmployee
+                                    ? "bg-slate-800 text-slate-600 cursor-not-allowed" // Truly disabled (No employee)
+                                    : !garoonId
+                                        ? "bg-amber-900/50 text-amber-200 border border-amber-700/50 hover:bg-amber-900/80 cursor-pointer" // Hard Warning (Employee selected, ID missing)
+                                        : "bg-slate-700 hover:bg-slate-600 text-white shadow-slate-900/20" // Ready
                             )}
                         >
                             <Download className="w-4 h-4" />
-                            CSV出力 (v2.1)
+                            CSV出力 (v2.2)
                         </button>
 
                         {/* ICS Export */}
