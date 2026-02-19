@@ -38,47 +38,79 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             return;
         }
 
-        // Standard Garoon/Cybozu Import Format
-        // Header: 日付,開始時刻,終了時刻,予定,メモ
+        // Verified Garoon/Cybozu Import Format (v1.4)
+        // Headers matches the user's sample keys: "title", "dtstart", "dtend", "is_all_day", "banner", "body"
+        // Dates must be prefixed with 'dt'
         const headers = [
-            "日付", "開始時刻", "終了時刻", "予定", "メモ"
+            "title", "dtstart", "dtend", "is_all_day", "banner", "body"
         ];
 
         const rows = employeeShifts.map(shift => {
             const isShift = shift.type === "Shift";
+            const isAllDay = !isShift;
 
-            // Format Date as YYYY/MM/DD
-            const [y, m, d] = shift.date.split("-");
-            const dateStr = `${y}/${m}/${d}`;
+            let title = "在宅";
+            let isBanner = "0";
 
-            let startTime = "";
-            let endTime = "";
-            let title = "";
-            let memo = "";
-
-            if (isShift && shift.startTime && shift.endTime) {
-                startTime = shift.startTime;
-                endTime = shift.endTime;
-                title = "在宅";
-            } else {
-                // Holiday -> No Time -> All Day Event (Banner)
+            if (!isShift) {
+                // Holiday -> All Day Event
                 title = "公休";
+                isBanner = "1";
+            } else {
+                // Shift -> Normal Schedule
+                isBanner = "0";
             }
 
-            // Map to array order
-            return [
-                dateStr,
-                startTime,
-                endTime,
-                title,
-                memo
-            ].map(v => `"${v}"`).join(",");
-            // Quote values for CSV safety
+            let startStr = "";
+            let endStr = "";
+
+            // Format: dtYYYY-MM-DD HH:MM:SS (Garoon Specific)
+            const [y, m, d] = shift.date.split("-");
+
+            if (isAllDay) {
+                // All Day: Start 00:00:00, End Next Day 00:00:00
+                startStr = `dt${y}-${m}-${d} 00:00:00`;
+
+                const nextDay = new Date(Number(y), Number(m) - 1, Number(d));
+                nextDay.setDate(nextDay.getDate() + 1);
+                const ny = nextDay.getFullYear();
+                const nm = String(nextDay.getMonth() + 1).padStart(2, '0');
+                const nd = String(nextDay.getDate()).padStart(2, '0');
+                endStr = `dt${ny}-${nm}-${nd} 00:00:00`;
+            } else {
+                // Shift: Specific Time
+                startStr = `dt${y}-${m}-${d} ${shift.startTime}:00`;
+
+                // Calculate end time (handle overnight)
+                const [sh, sm] = shift.startTime!.split(":").map(Number);
+                const [eh, em] = shift.endTime!.split(":").map(Number);
+                let endY = Number(y), endM = Number(m), endD = Number(d);
+
+                if (eh < sh) {
+                    const next = new Date(Number(y), Number(m) - 1, Number(d));
+                    next.setDate(next.getDate() + 1);
+                    endY = next.getFullYear();
+                    endM = next.getMonth() + 1;
+                    endD = next.getDate();
+                }
+                endStr = `dt${endY}-${String(endM).padStart(2, '0')}-${String(endD).padStart(2, '0')} ${shift.endTime}:00`;
+            }
+
+            const map: Record<string, string> = {
+                "title": title,
+                "is_all_day": isAllDay ? "1" : "0",
+                "dtstart": startStr,
+                "dtend": endStr,
+                "banner": isBanner,
+                "body": shift.type === "Shift" ? `Shift: ${shift.startTime} - ${shift.endTime}` : `Type: ${shift.type}`
+            };
+
+            return headers.map(h => `"${map[h] || ""}"`).join(",");
         });
 
         const csvContent = [headers.join(","), ...rows].join("\n");
 
-        // Convert string to UTF-16LE with BOM (Required for Windows/Excel/Garoon)
+        // Convert string to UTF-16LE with BOM
         const contentBuffer = new ArrayBuffer(2 + csvContent.length * 2);
         const view = new DataView(contentBuffer);
 
@@ -218,7 +250,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                         )}
                     >
                         <Download className="w-4 h-4" />
-                        CSV出力 (確定版 v1.3)
+                        CSV出力 (確定版 v1.4)
                     </button>
 
                     {/* ICS Export */}
