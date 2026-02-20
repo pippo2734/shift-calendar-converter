@@ -5,7 +5,7 @@ import { ParseResult, ShiftEvent } from "@/types";
 import { motion } from "framer-motion";
 import { Calendar as CalendarIcon, Download, User } from "lucide-react";
 import { clsx } from "clsx";
-
+import type { EventAttributes } from "ics";
 
 interface ShiftEditorProps {
     data: ParseResult;
@@ -228,39 +228,13 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                 "0",              // 39
                 "1",              // 40: send_mail
                 "-1",             // 41: alarm_time
-                "1\n2",           // 42: mail_type
-                "",               // 43
-                "0",              // 44
-                "0",              // 45: recurrence
-                "none",           // 46: recurrent_type
-                "1",              // 47
-                "1",              // 48
-                "",               // 49
-                "",               // 50
-                "1",              // 51
-                getWeekOfMonth(startDateObj).toString(), // 52: week_of_month
-                startDateObj.getDay().toString(),        // 53: day_of_week
-                startStr,         // 54: irregular_dates
-                startStr,         // 55: recurrent_start
-                "",               // 56
-                "10",             // 57: limit_count
-                "",               // 58
-                "0",              // 59
-                "",               // 60
-                "", "", "", "", "", "", "", "", "", "", // 61-70: reserves
-                "",               // 71
-                "",               // 72
-                "0",              // 73: is_tentative
-                eventId,          // 74: id
-                container,        // 75: container
-                "",               // 76
-                eventId,          // 77: thread_id
-                "",               // 78
-                "/atypes/ariel/schedule", // 79: type
-                "text/xhtml",     // 80: format
-                "",               // 81
-                "",               // 82
-                "0"               // 83: sort_order
+                "public", "0", "", "0", "0", "0", "0", "2", "0", "1", "-1", "12",
+                "", "0", "0", "none", "1", "1", "", "", "1",
+                getWeekOfMonth(startDateObj).toString(), startDateObj.getDay().toString(),
+                startStr, startStr, "", "10", "", "0", "",
+                "", "", "", "", "", "", "", "", "", "",
+                "", "", "0", eventId, container, "", eventId, "",
+                "/atypes/ariel/schedule", "text/xhtml", "", "", "0"
             ];
 
             return cols.map(c => `"${c}"`).join(",");
@@ -268,19 +242,8 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
         const csvContent = [headers.map(h => `"${h}"`).join(","), ...rows].join("\n");
 
-        // Convert string to UTF-16LE with BOM
-        const contentBuffer = new ArrayBuffer(2 + csvContent.length * 2);
-        const view = new DataView(contentBuffer);
-
-        // BOM (0xFF, 0xFE)
-        view.setUint16(0, 0xFEFF, true);
-
-        // Write content
-        for (let i = 0; i < csvContent.length; i++) {
-            view.setUint16(2 + i * 2, csvContent.charCodeAt(i), true);
-        }
-
-        const blob = new Blob([contentBuffer], { type: "text/csv;charset=utf-16le" });
+        // Convert string to UTF-8 (BOM-less)
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -310,7 +273,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
             return;
         }
 
-        const events: ics.EventAttributes[] = employeeShifts.map(shift => {
+        const events: EventAttributes[] = employeeShifts.map(shift => {
             const [year, month, day] = shift.date.split("-").map(Number);
 
             // Case 1: Regular Shift
@@ -424,7 +387,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                             )}
                         >
                             <Download className="w-4 h-4" />
-                            CSV出力 (v3.0)
+                            CSV出力 (v3.3)
                         </button>
 
                         {/* ICS Export */}
