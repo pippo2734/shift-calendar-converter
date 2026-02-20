@@ -242,8 +242,19 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
 
         const csvContent = [headers.map(h => `"${h}"`).join(","), ...rows].join("\n");
 
-        // Convert string to UTF-8 (BOM-less)
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+        // Convert string to UTF-16LE with BOM
+        const contentBuffer = new ArrayBuffer(2 + csvContent.length * 2);
+        const view = new DataView(contentBuffer);
+
+        // BOM (0xFF, 0xFE)
+        view.setUint16(0, 0xFEFF, true);
+
+        // Write content
+        for (let i = 0; i < csvContent.length; i++) {
+            view.setUint16(2 + i * 2, csvContent.charCodeAt(i), true);
+        }
+
+        const blob = new Blob([contentBuffer], { type: "text/csv;charset=utf-16le" });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
@@ -387,7 +398,7 @@ export default function ShiftEditor({ data, onReset }: ShiftEditorProps) {
                             )}
                         >
                             <Download className="w-4 h-4" />
-                            CSV出力 (v3.3)
+                            CSV出力 (v3.4)
                         </button>
 
                         {/* ICS Export */}
